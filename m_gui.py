@@ -2,12 +2,14 @@ import sys
 import os
 from functools import partial
 from PyQt5.QtCore import Qt, QRect, QTimer, QThread, QThreadPool, QRunnable, QObject, pyqtSignal, pyqtSlot, QSize
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QMessageBox, QProgressBar, QDialog
+from PyQt5.QtWidgets import QComboBox, QMainWindow, QVBoxLayout, QHBoxLayout, QMessageBox, QProgressBar
 from PyQt5.QtWidgets import QLabel, QFileDialog, QLineEdit, QFrame, QMenu, QInputDialog, QSpacerItem
 from PyQt5.QtWidgets import QApplication, QAction, qApp, QGroupBox, QRadioButton, QSizePolicy, QFrame
 from PyQt5.QtWidgets import QTabWidget, QWidget, QPushButton, QListWidget, QGridLayout, QStackedWidget
-from PyQt5.QtGui import QFont, QPixmap, QIcon, QImage
+from PyQt5.QtWidgets import QDialog, QListWidgetItem
+from PyQt5.QtGui import QColor, QFont, QPixmap, QIcon, QImage, QPainter, QPen
 from PyQt5.QtChart import QChart, QChartView, QPieSeries, QPieSlice, QLineSeries, QBarSet, QPercentBarSeries, QBarCategoryAxis
+from uuid import uuid4
 
 OS = sys.platform
 username = "Minh Nguyen"
@@ -23,10 +25,26 @@ elif OS.startswith("darwin"):
 else:
     sys.exit(1)
 
+def currency(value, currency_symbol="VND", brief=False, round_to_decimal=True):
+    if brief:
+        _v = len(str(int(value)))
+        if (_v > 0) and (_v < 6):
+            return "{:,.2f}K {}".format(value/1e3, currency_symbol)
+        elif (_v >= 6 ) and (_v < 9):
+            return "{:,.2f}M {}".format(value/1e6, currency_symbol)
+        else:
+            return "{:,.2f}B {}".format(value/1e9, currency_symbol)
+    else:
+        if round_to_decimal:
+            return "{:,} {}".format(round(value), currency_symbol)
+        elif not round_to_decimal and not brief:
+            return "{:,.2f} {}".format(value, currency_symbol)
+
 class MFont():
     def __init__(self):
         self.font10B = QFont();
         self.font10U = QFont();
+        self.font10BI = QFont();
         self.font12 = QFont();
         self.font12B = QFont();
         self.font12U = QFont();
@@ -61,6 +79,11 @@ class MFont():
         self.font10U.setFamily(FONT);
         self.font10U.setPointSize(10);
         self.font10U.setUnderline(True);
+
+        self.font10BI.setFamily(FONT);
+        self.font10BI.setPointSize(10);
+        self.font10BI.setItalic(True);
+        self.font10BI.setBold(True);
 
         self.font12.setFamily(FONT);
         self.font12.setPointSize(12);
@@ -156,6 +179,209 @@ class MFont():
         self.font30BU.setPointSize(30);
         self.font30BU.setBold(True);
         self.font30BU.setUnderline(True);
+
+class ShoppingItem(QListWidgetItem):
+    def __init__(self, list_widget, itemTitle, ID):
+        super(ShoppingItem, self).__init__()
+        self.itemTitle = itemTitle
+        self.ID = ID
+        self.item = QListWidgetItem()
+        self.widget = QWidget()
+        self.widget.setStyleSheet("background-color: white; border: transparent; border-radius: 0;")
+        sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.widget.sizePolicy().hasHeightForWidth())
+        self.widget.setSizePolicy(sizePolicy)
+        self.widgetItem = None
+        self.list_widget = list_widget
+        self.widgetLayout = QGridLayout(self.widget)
+        # self.widgetLayout = QHBoxLayout(self.widget)
+        
+        font10B = QFont();
+        font10B.setFamily(FONT);
+        font10B.setPointSize(10);
+        font10B.setBold(True);
+        font12B = QFont();
+        font12B.setFamily(FONT);
+        font12B.setPointSize(12);
+        font12B.setBold(True);
+        widgetText = QLabel(self.widget)
+        widgetText.setText(self.itemTitle)
+        widgetText.setFont(font12B)
+        widgetText.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        widgetText.setStyleSheet("background-color: transparent; color: #7e8198; padding: 0")
+        self.crossMarkButton = QPushButton(self.widget)
+        self.crossMarkButton.setText("Remove")
+        self.crossMarkButton.setFont(font10B)
+        self.crossMarkButton.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.crossMarkButton.setStyleSheet("""QPushButton{ background-color: #ff8f78; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                    QPushButton::pressed{ background-color: #ffb274; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                    QPushButton::hover{ background-color: #ffb274; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }""")
+        self.crossMarkButton.clicked.connect(self.crossMarkButnClickedHandle)
+        self.checkMarkButton = QPushButton(self.widget)
+        self.checkMarkButton.setText("Done")
+        self.checkMarkButton.setFont(font10B)
+        self.checkMarkButton.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.checkMarkButton.setStyleSheet("""QPushButton{ background-color: #ff8f78; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                    QPushButton::pressed{ background-color: #ffb274; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                    QPushButton::hover{ background-color: #ffb274; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }""")
+        self.checkMarkButton.clicked.connect(self.checkMarkButnClickedHandle)
+        hSeparator = QWidget(self.widget)
+        hSeparator.setFixedHeight(2)
+        hSeparator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        hSeparator.setStyleSheet("background-color: #eaebec; padding-left: 10px; padding-right: 10px; padding-top: 10px")
+        self.widgetLayout.addWidget(widgetText, 0, 0, 1, 1)
+        self.widgetLayout.addItem(QSpacerItem(5, 5, QSizePolicy.Expanding, QSizePolicy.Maximum), 0, 1, 1, 1) # w:15 h:15
+        self.widgetLayout.addWidget(self.crossMarkButton, 0, 2, 1, 1)
+        self.widgetLayout.addWidget(self.checkMarkButton, 0, 3, 1, 1)
+        self.widgetLayout.addWidget(hSeparator, 1, 0, 1, 4)
+        self.widgetLayout.setColumnStretch(0, 0)
+        self.widgetLayout.setColumnStretch(1, 1)
+        self.widgetLayout.setColumnStretch(2, 0)
+        self.widgetLayout.setColumnStretch(3, 0)
+        self.widget.setLayout(self.widgetLayout)
+        self.item.setSizeHint(self.widget.sizeHint())
+
+    def crossMarkButnClickedHandle(self):
+        self.remove()
+
+    def checkMarkButnClickedHandle(self):
+        self.remove()
+
+    def insert(self, top=True):
+        if top:
+            self.list_widget.insertItem(0, self.item)
+            self.widgetItem = self.list_widget.item(0)
+        else:
+            self.list_widget.addItem(self.item)
+            self.widgetItem = self.list_widget.item(self.list_widget.count() - 1)
+        self.list_widget.setItemWidget(self.item, self.widget)
+
+    def remove(self):
+        row = self.list_widget.row(self.widgetItem)
+        self.list_widget.takeItem(row)
+
+class TransactionItem(QListWidgetItem):
+    def __init__(self, list_widget, ID, timeTranc, titleTranc, payment, type, cost):
+        super(TransactionItem, self).__init__()
+        self.ID = ID
+        self.item = QListWidgetItem()
+        self.widget = QWidget()
+        self.widget.setStyleSheet("background-color: white; border: transparent; border-radius: 0;")
+        sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.widget.sizePolicy().hasHeightForWidth())
+        self.type = type[0].upper() + type[1:].lower()
+        self.widget.setSizePolicy(sizePolicy)
+        self.list_widget = list_widget
+        self.widgetItem = None
+        self.widgetLayout = QGridLayout(self.widget)
+        colorTag = {"Other": "#51546f",
+                    "Bills": "#7963cd",
+                    "Entertaiment": "#ff8f78",
+                    "Health": "#c13c3c",
+                    "Education": "#3dbce0",
+                    "Clothes": "#cbb64d",
+                    "Salary": "#277a44"}
+        # self.widgetLayout = QHBoxLayout(self.widget)
+
+        font10B = QFont();
+        font10B.setFamily(FONT);
+        font10B.setPointSize(10);
+        font10B.setBold(True);
+        font12B = QFont();
+        font12B.setFamily(FONT);
+        font12B.setPointSize(12);
+        font12B.setBold(True);
+        font12N = QFont();
+        font12N.setFamily(FONT);
+        font12N.setPointSize(12);
+
+        self.timeTrancLabel = QLabel(self.widget)
+        self.timeTrancLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.timeTrancLabel.setStyleSheet("background-color: white; color: #1d1c1c; border: transparent; border-radius: 0;")
+        self.timeTrancLabel.setFont(font12B)
+        self.timeTrancLabel.setAlignment(Qt.AlignLeft)
+        self.timeTrancLabel.setText(timeTranc)
+        self.titleTrancLabel = QLabel(self.widget)
+        self.titleTrancLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.titleTrancLabel.setStyleSheet("background-color: white; color: #1d1c1c; border: transparent; border-radius: 0;")
+        self.titleTrancLabel.setFont(font12B)
+        self.titleTrancLabel.setAlignment(Qt.AlignLeft)
+        self.titleTrancLabel.setText(titleTranc)
+        self.paymentMethodTrancLabel = QLabel(self.widget)
+        self.paymentMethodTrancLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.paymentMethodTrancLabel.setStyleSheet("background-color: white; color: #7d7d7d; border: transparent; border-radius: 0;")
+        self.paymentMethodTrancLabel.setFont(font12B)
+        self.paymentMethodTrancLabel.setAlignment(Qt.AlignLeft)
+        self.paymentMethodTrancLabel.setText(payment)
+        tag = QWidget(self.widget)
+        tag.setFixedSize(10, 10)
+        tag.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Expanding)
+        self.typeTrancLabel = QLabel(self.widget)
+        self.typeTrancLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        try:
+            self.typeTrancLabel.setStyleSheet("background-color: white; color: {}; border: transparent; border-radius: 0;".format(colorTag[self.type]))
+            tag.setStyleSheet("background-color: {}; opacity: 0.5;".format(colorTag[self.type]))
+        except KeyError:
+            self.typeTrancLabel.setStyleSheet("background-color: white; color: #1d1c1c; border: transparent; border-radius: 0;")
+            tag.setStyleSheet("background-color: #1d1c1c; opacity: 0.5;")
+
+        self.typeTrancLabel.setFont(font12B)
+        self.typeTrancLabel.setAlignment(Qt.AlignLeft)
+        self.typeTrancLabel.setText(self.type)
+        self.costTrancLabel = QLabel(self.widget)
+        self.costTrancLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        if self.type == "Salary":
+            self.costTrancLabel.setStyleSheet("background-color: white; color: #277a44; border: transparent; border-radius: 0;")
+        else:
+            self.costTrancLabel.setStyleSheet("background-color: white; color: #1d1c1c; border: transparent; border-radius: 0;")
+        self.costTrancLabel.setFont(font12B)
+        self.costTrancLabel.setAlignment(Qt.AlignRight)
+        if self.type == "Salary":
+            self.costTrancLabel.setText("+ " + currency(cost, brief=True) if cost>=1e6 else "+ " + currency(cost))
+        else:
+            self.costTrancLabel.setText("- " + currency(cost, brief=True) if cost>=1e6 else "- " + currency(cost))
+
+        hSeparator = QWidget(self.widget)
+        hSeparator.setFixedHeight(2)
+        hSeparator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        hSeparator.setStyleSheet("background-color: #eaebec; padding-left: 10px; padding-right: 10px; padding-top: 10px")
+        self.widgetLayout.addWidget(self.timeTrancLabel, 0, 0, 1, 1)
+        self.widgetLayout.addWidget(self.titleTrancLabel, 0, 1, 1, 1)
+        self.widgetLayout.addWidget(self.paymentMethodTrancLabel, 0, 2, 1, 1)
+        self.widgetLayout.addWidget(tag, 0, 3, 1, 1)
+        self.widgetLayout.addWidget(self.typeTrancLabel, 0, 4, 1, 1)
+        self.widgetLayout.addWidget(self.costTrancLabel, 0, 5, 1, 1)
+        self.widgetLayout.addWidget(hSeparator, 1, 0, 1, 6)
+        self.widgetLayout.setColumnStretch(0, 5)
+        self.widgetLayout.setColumnStretch(1, 40)
+        self.widgetLayout.setColumnStretch(2, 10)
+        self.widgetLayout.setColumnStretch(4, 10)
+        self.widgetLayout.setColumnStretch(5, 10)
+        self.widget.setLayout(self.widgetLayout)
+        self.item.setSizeHint(self.widget.sizeHint())
+
+    def crossMarkButnClickedHandle(self):
+        self.remove()
+
+    def checkMarkButnClickedHandle(self):
+        self.remove()
+
+    def insert(self, top=True):
+        if top:
+            self.list_widget.insertItem(0, self.item)
+            self.widgetItem = self.list_widget.item(0)
+        else:
+            self.list_widget.addItem(self.item)
+            self.widgetItem = self.list_widget.item(self.list_widget.count() - 1)
+        self.list_widget.setItemWidget(self.item, self.widget)
+
+    def remove(self):
+        row = self.list_widget.row(self.widgetItem)
+        self.list_widget.takeItem(row)
 
 class AppWindow(QMainWindow):
     def __init__(self, app):
@@ -319,24 +545,6 @@ class AppWindow(QMainWindow):
         self.stackedWidget.addWidget(self.initCardsTab())
         self.stackedWidget.addWidget(self.initGoldForexRateTab())
 
-    def currency(value, currency_symbol="VND", brief=False, round_to_decimal=True):
-        if brief:
-            _v = len(str(int(value)))
-            if (_v > 0) and (_v < 6):
-                return "{:,.2f}K {}".format(value/1e3, currency_symbol)
-            elif (_v >= 6 ) and (_v < 9):
-                return "{:,.2f}M {}".format(value/1e6, currency_symbol)
-            else:
-                return "{:,.2f}B {}".format(value/1e9, currency_symbol)
-        else:
-            if round_to_decimal:
-                return "{:,} {}".format(round(value), currency_symbol)
-            elif not round_to_decimal and not brief:
-                return "{:,.2f} {}".format(value, currency_symbol)
-        
-    def shoppingItem():
-        itemWidget = QWidget()
-
     def initMyAccountTab(self):
         tabWidget = QWidget(self.stackedWidget)
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -472,7 +680,7 @@ class AppWindow(QMainWindow):
             colorTagAvailBalance.setStyleSheet("background-color: #41ab2e; color: #41ab2e")
 
             self.availBalanceLabel = QLabel(accountWidgetColumn1)
-            self.availBalanceLabel.setText(AppWindow.currency(31076464))
+            self.availBalanceLabel.setText(currency(31076464))
             self.availBalanceLabel.setFont(self._font.font30BU)
             self.availBalanceLabel.setAlignment(Qt.AlignRight)
             self.availBalanceLabel.setStyleSheet("background-color: transparent; color: #2f5240; border: transparent; padding: 10;")
@@ -484,7 +692,7 @@ class AppWindow(QMainWindow):
             expenseTextLabel.setStyleSheet("background-color: transparent; color: #74778f; border: transparent; padding: 10;")
 
             self.expenseLabel = QLabel(accountWidgetColumn1)
-            self.expenseLabel.setText(AppWindow.currency(2200000, brief=True))
+            self.expenseLabel.setText(currency(2200000, brief=True))
             self.expenseLabel.setFont(self._font.font24B)
             self.expenseLabel.setAlignment(Qt.AlignRight)
             self.expenseLabel.setStyleSheet("background-color: transparent; color: #102a3b; border: transparent; padding: 10;")
@@ -502,7 +710,7 @@ class AppWindow(QMainWindow):
             incomeTextLabel.setStyleSheet("background-color: transparent; color: #74778f; border: transparent; padding: 10;")
 
             self.incomeLabel = QLabel(accountWidgetColumn1)
-            self.incomeLabel.setText(AppWindow.currency(10000000, brief=True))
+            self.incomeLabel.setText(currency(10000000, brief=True))
             self.incomeLabel.setFont(self._font.font24B)
             self.incomeLabel.setAlignment(Qt.AlignRight)
             self.incomeLabel.setStyleSheet("background-color: transparent; color: #4d340b; border: transparent; padding: 10;")
@@ -585,20 +793,25 @@ class AppWindow(QMainWindow):
             calendarIcon.setSizePolicy(sizePolicy)
             calendarIcon.setPixmap(QPixmap("image/favpng_e-commerce-online-shopping-icon.png").scaled(calendarIcon.width(), calendarIcon.height(), Qt.KeepAspectRatio, Qt.FastTransformation))
 
-            self.shoppingList = QListWidget(shopTodayWidget)
+            self.shoppingListWidget = QListWidget(shopTodayWidget)
+            self.shoppingListItems = []
+            for _title in ["bought some of OMAI", "Buy new Iphone 12 Pro Max", "Buy a Package of condom", "Buy new laptop", "Buy new Samsung Galaxy S21 Ultra", "Buy new sugar baby"]:
+                item = ShoppingItem(self.shoppingListWidget, _title, uuid4().hex)
+                item.insert()
+                self.shoppingListItems.append(item)
+
             sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             sizePolicy.setHorizontalStretch(0)
             sizePolicy.setVerticalStretch(0)
-            sizePolicy.setHeightForWidth(self.shoppingList.sizePolicy().hasHeightForWidth())
-            self.shoppingList.setSizePolicy(sizePolicy)
-            self.shoppingList.setStyleSheet("background-color: #95cac3; color: #dbedeb; border: transparent; padding: 10;")
+            sizePolicy.setHeightForWidth(self.shoppingListWidget.sizePolicy().hasHeightForWidth())
+            self.shoppingListWidget.setSizePolicy(sizePolicy)
+            self.shoppingListWidget.setStyleSheet("background-color: transparent; color: #dbedeb; border: transparent; padding: 10;")
 
             paddingWidget = QWidget(shopTodayWidget)
             paddingWidgetLayout = QHBoxLayout(paddingWidget)
             paddingWidgetLayout.setSpacing(10)
-            paddingWidgetLayout.addWidget(self.shoppingList)
+            paddingWidgetLayout.addWidget(self.shoppingListWidget)
             paddingWidget.setLayout(paddingWidgetLayout)
-
 
             shopTodayWidgetLayout.addWidget(shopTodayTitleLabel, 0, 0, 1, 1)
             # shopTodayWidgetLayout.addWidget(minusButton, 0, 2, 1, 1)
@@ -616,18 +829,85 @@ class AppWindow(QMainWindow):
             shopTodayWidget.setLayout(shopTodayWidgetLayout)
 
         shopTodayWidget = QWidget(tabWidget)
-        # shopTodayWidget.setMinimumHeight(100)
         initShopTodayWidget(shopTodayWidget)
 
         def initLatestTrancWidget(latestTrancWidget):
-            latestTrancWidget.setStyleSheet("border: 2px solid yellow;")
+            latestTrancWidget.setStyleSheet("border: transparent; background-color: white; border-radius: 15px;")
             sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             sizePolicy.setHorizontalStretch(0)
             sizePolicy.setVerticalStretch(0)
             sizePolicy.setHeightForWidth(latestTrancWidget.sizePolicy().hasHeightForWidth())
             latestTrancWidget.setSizePolicy(sizePolicy)
             latestTrancWidgetLayout = QGridLayout(latestTrancWidget)
-            latestTrancWidgetLayout.addWidget(QLabel("WWWW"), 0, 0, 1, 1, alignment=Qt.AlignCenter)
+            latestTrancWidgetLayout.setSpacing(0)
+
+            latestTrancWidget_row0 = QWidget(latestTrancWidget)
+            latestTrancWidget_row0Layout = QHBoxLayout(latestTrancWidget_row0)
+            latestTrancTitleLabel = QLabel(latestTrancWidget_row0)
+            latestTrancTitleLabel.setText("Latest transactions")
+            latestTrancTitleLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            latestTrancTitleLabel.setFont(self._font.font16B)
+            latestTrancTitleLabel.setStyleSheet("background-color: transparent; color: #1d1c1c; border: transparent; padding-left: 10;")
+            self.moreDetailTabButn2 = QPushButton(latestTrancWidget_row0)
+            self.moreDetailTabButn2.setText("➔")
+            self.moreDetailTabButn2.setFont(self._font.font14B)
+            self.moreDetailTabButn2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            self.moreDetailTabButn2.setStyleSheet("""QPushButton{ background-color: #058373; color: #cfe7e4; border: transparent; padding: 10; border-radius: 10; }
+                                                    QPushButton:hover{ background-color: #0eab97; color: #c3e3df; border: transparent; padding: 10; border-radius: 10; }""")
+            latestTrancWidget_row0Layout.addWidget(latestTrancTitleLabel)
+            latestTrancWidget_row0Layout.addWidget(self.moreDetailTabButn2)
+            latestTrancWidget_row0.setLayout(latestTrancWidget_row0Layout)
+
+            hSeparator = QWidget(latestTrancWidget)
+            hSeparator.setFixedHeight(2)
+            hSeparator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            hSeparator.setStyleSheet("background-color: #eaebec; padding-left: 10px; padding-right: 10px")
+            padding = QWidget(latestTrancWidget)
+            paddingLayout = QHBoxLayout(padding)
+            padding.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            padding.setStyleSheet("background-color: transparent")
+            paddingLayout.addWidget(hSeparator)
+            padding.setLayout(paddingLayout)
+            padding2 = QWidget(latestTrancWidget)
+            padding2Layout = QHBoxLayout(padding2)
+            padding2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            padding2.setStyleSheet("background-color: transparent")
+            padding2Layout.addWidget(padding)
+            padding2.setLayout(padding2Layout)
+
+            latestTrancWidget_row1 = QWidget(latestTrancWidget)
+            latestTrancWidget_row1.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            latestTrancWidget_row1Layout = QHBoxLayout(latestTrancWidget_row1)
+            latestTrancWidget_row1.setLayout(latestTrancWidget_row1Layout)
+            self.trancListWidget = QListWidget(latestTrancWidget)
+            sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            sizePolicy.setHorizontalStretch(0)
+            sizePolicy.setVerticalStretch(0)
+            sizePolicy.setHeightForWidth(self.trancListWidget.sizePolicy().hasHeightForWidth())
+            self.trancListWidget.setSizePolicy(sizePolicy)
+            self.trancListWidget.setStyleSheet("background-color: transparent; color: #dbedeb; border: transparent; border-radius: 0px;")
+            self.trancListItems = []
+            for _timeTranc, _titleTranc, _payment, _type, _cost in zip(["Today", "Today", "20.05", "20.05", "19.05", "19.05", "18.05",
+                                                                            "17.05", "17.05", "16.05", "16.05", "15.05", "14.05"],
+                                                                        ["Starbucks Cafe", "Off White Oxford Street 41", "Spotify Premium", "Viettel Network", "Allgero.pl Sp.z.o.o", "Super-Pharm Warsaw", "Carrefour Express",
+                                                                            "HighLand coffee", "Vegetable", "Miss Quy's Birthday", "Dinner", "Gift for Miss Quy", "Bring my W to ice cream store"],
+                                                                        ["Card payment", "Card payment", "Fee", "Transfer", "Blik", "Blik", "Card payment",
+                                                                            "Card payment", "Cash", "Card payment", "Card payment", "Card payment", "Card payment"],
+                                                                        ["Food", "Clothes", "Entertainment", "Salary", "Clothes", "Health", "Food",
+                                                                            "Other", "Other", "Other", "Other", "Other", "Other"],
+                                                                        [49000, 260000, 59000, 14000000, 25000, 98900, 45780,
+                                                                            49000, 15000, 100000, 100000, 53000, 18000]):
+                item = TransactionItem(self.trancListWidget, uuid4().hex, _timeTranc, _titleTranc, _payment, _type, _cost)
+                item.insert(top=False)
+                self.trancListItems.append(item)
+
+            latestTrancWidget_row1Layout.addWidget(self.trancListWidget)
+            latestTrancWidget_row1.setLayout(latestTrancWidget_row1Layout)
+
+            latestTrancWidgetLayout.addWidget(latestTrancWidget_row0)
+            latestTrancWidgetLayout.addWidget(padding2)
+            latestTrancWidgetLayout.addWidget(latestTrancWidget_row1)
+            latestTrancWidget.setLayout(latestTrancWidgetLayout)
 
         latestTrancWidget = QWidget(tabWidget)
         initLatestTrancWidget(latestTrancWidget)
@@ -679,19 +959,19 @@ class AppWindow(QMainWindow):
             monthlyTitleLabel.setFont(self._font.font12B)
             monthlyTitleLabel.setStyleSheet("background-color: transparent; color: #72758e; border: transparent; padding-left: 10; padding-bottom: 0;")
             dailyLabel = QLabel(allExpensesWidget_row1)
-            dailyLabel.setText(AppWindow.currency(275400, brief=True))
+            dailyLabel.setText(currency(275400, brief=True))
             dailyLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
             dailyLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             dailyLabel.setFont(self._font.font18B)
             dailyLabel.setStyleSheet("background-color: transparent; color: #1d1c1c; border: transparent; padding-left: 10; padding-bottom: 0;")
             weeklyLabel = QLabel(allExpensesWidget_row1)
-            weeklyLabel.setText(AppWindow.currency(1426000, brief=True))
+            weeklyLabel.setText(currency(1426000, brief=True))
             weeklyLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
             weeklyLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             weeklyLabel.setFont(self._font.font18B)
             weeklyLabel.setStyleSheet("background-color: transparent; color: #1d1c1c; border: transparent; padding-left: 10; padding-bottom: 0;")
             monthlyLabel = QLabel(allExpensesWidget_row1)
-            monthlyLabel.setText(AppWindow.currency(8200000, brief=True))
+            monthlyLabel.setText(currency(8200000, brief=True))
             monthlyLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
             monthlyLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             monthlyLabel.setFont(self._font.font18B)
@@ -705,15 +985,55 @@ class AppWindow(QMainWindow):
             allExpensesWidget_row1.setLayout(allExpensesWidget_row1Layout)
 
             allExpensesWidget_row2 = QWidget(allExpensesWidget)
-            allExpensesWidget_row2Layout = QHBoxLayout(allExpensesWidget_row2)
+            allExpensesWidget_row2Layout = QVBoxLayout(allExpensesWidget_row2)
+            durationComboBox = QComboBox(allExpensesWidget_row2)
+            durationComboBox.setFont(self._font.font12B)
+            durationComboBox.setStyleSheet("""QComboBox{ background-color: transparent; padding-left: 15px }
+                                                QComboBox:QAbstractItemView{ background-color: white; color:orange; padding-left: 15px }""")
+            durationComboBox.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            durationComboBox.addItem("Today")
+            durationComboBox.addItem("Yesterday")
+            durationComboBox.addItem("2-day ago")
+            durationComboBox.addItem("a week ago")
+            durationComboBox.addItem("two-week ago")
+            durationComboBox.addItem("a month ago")
+            durationComboBox.addItem("custom")
+
+            series = QPieSeries()
+            series.setHoleSize(0.6)
+            data = (820000, 820000, 752000, 522000, 300000, 450000)
+            _sum = sum(data)
+            dataLabel = ("Other", "Bills", "Entertaiment", "Health", "Education", "Clothes")
+            colorLabel = ("#51546f", "#7963cd", "#ff8f78", "#c13c3c", "#3dbce0", "#cbb64d")
+            for _data, _label, _color in zip(data, dataLabel, colorLabel):
+                series.append(_label, _data)
+                slice = QPieSlice()
+                slice = series.slices()[series.count() - 1]
+                # slice.setExploded(True)
+                slice.setLabel("{}: {}".format(_label, currency(_data, "", brief=True)))
+                slice.setLabelFont(self._font.font10BI)
+                slice.setLabelVisible(True)
+                slice.setPen(QPen(QColor(_color), 0))
+                slice.setBrush(QColor(_color))
+
+            chart = QChart()
+            # chart.legend().hide()
+            chart.addSeries(series)
+            chart.setAnimationOptions(QChart.SeriesAnimations)
+            chartview = QChartView(chart)
+            chartview.setRenderHint(QPainter.Antialiasing)
+            chart.legend().setAlignment(Qt.AlignRight)
+            for i, _label in enumerate(dataLabel):
+                chart.legend().markers(series)[i].setLabel(_label)
+                chart.legend().markers(series)[i].setFont(self._font.font10B)
+            allExpensesWidget_row2Layout.addWidget(durationComboBox)
+            allExpensesWidget_row2Layout.addWidget(chartview)
             allExpensesWidget_row2.setLayout(allExpensesWidget_row2Layout)
-            
 
             hSeparator = QWidget(allExpensesWidget)
             hSeparator.setFixedHeight(2)
             hSeparator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-            # hSeparator.setStyleSheet("background-color: #fafbfc")
-            hSeparator.setStyleSheet("background-color: red")
+            hSeparator.setStyleSheet("background-color: #eaebec; padding-left: 10px; padding-left: 10px")
             padding = QWidget(allExpensesWidget)
             paddingLayout = QHBoxLayout(padding)
             padding.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)

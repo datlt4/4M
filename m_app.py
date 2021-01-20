@@ -30,7 +30,7 @@ def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(stylesheet)
     window = GUI.AppWindow(app)
-    window.showMaximized()
+    window.showFullScreen()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
