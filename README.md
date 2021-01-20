@@ -1,5 +1,5 @@
 # 4M
-run
+***Author and contributor: Minh Nguyen***
 
     python3 m_app.py
 
