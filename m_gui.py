@@ -398,8 +398,8 @@ class AccountWidget(QWidget):
         self.accountWidgetLayout = QHBoxLayout(self.accountWidget)
         self.accountWidgetLayout.setSpacing(5)
 
-        self.createColumn0()
-        self.createColumn1()
+        self.createColumnWidget0()
+        self.createColumnWidget1()
 
         self.accountWidgetLayout.addWidget(self.accountWidgetColumn0)
         self.accountWidgetLayout.addWidget(self.accountWidgetColumn1)
@@ -407,7 +407,7 @@ class AccountWidget(QWidget):
         self.accountWidgetLayout.setStretch(1, 1)
         accountWidget.setLayout(self.accountWidgetLayout)
 
-    def createColumn0(self):
+    def createColumnWidget0(self):
         self.accountWidgetColumn0 = QWidget(self.accountWidget)
         self.accountWidgetColumn0Layout = QVBoxLayout(self.accountWidgetColumn0)
         self.selectAccoutWidget = QWidget(self.accountWidgetColumn0)
@@ -495,7 +495,7 @@ class AccountWidget(QWidget):
         self.accountWidgetColumn0Layout.setStretch(3, 2)
         self.accountWidgetColumn0.setLayout(self.accountWidgetColumn0Layout)
 
-    def createColumn1(self):
+    def createColumnWidget1(self):
         self.accountWidgetColumn1 = QWidget(self.accountWidget)
         self.accountWidgetColumn1Layout = QGridLayout(self.accountWidgetColumn1)
         self.accountWidgetColumn1Layout.setSpacing(0)
@@ -650,15 +650,15 @@ class LatestTrancWidget(QWidget):
         self.latestTrancWidgetLayout = QGridLayout(self.latestTrancWidget)
         self.latestTrancWidgetLayout.setSpacing(0)
 
-        self.createRow0()
-        self.createRow1()
+        self.createRowWidget0()
+        self.createRowWidget1()
 
         self.latestTrancWidgetLayout.addWidget(self.latestTrancWidget_row0)
         self.latestTrancWidgetLayout.addWidget(self.padding2)
         self.latestTrancWidgetLayout.addWidget(self.latestTrancWidget_row1)
         self.latestTrancWidget.setLayout(self.latestTrancWidgetLayout)
 
-    def createRow0(self):
+    def createRowWidget0(self):
         self.latestTrancWidget_row0 = QWidget(self.latestTrancWidget)
         self.latestTrancWidget_row0Layout = QHBoxLayout(self.latestTrancWidget_row0)
         self.latestTrancTitleLabel = QLabel(self.latestTrancWidget_row0)
@@ -693,7 +693,7 @@ class LatestTrancWidget(QWidget):
         self.padding2Layout.addWidget(self.padding)
         self.padding2.setLayout(self.padding2Layout)
 
-    def createRow1(self):
+    def createRowWidget1(self):
         self.latestTrancWidget_row1 = QWidget(self.latestTrancWidget)
         self.latestTrancWidget_row1.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.latestTrancWidget_row1Layout = QHBoxLayout(self.latestTrancWidget_row1)
@@ -736,9 +736,9 @@ class AllExpensesWidget(QWidget):
         self.allExpensesWidget.setSizePolicy(sizePolicy)
         self.allExpensesWidgetLayout = QVBoxLayout(self.allExpensesWidget)
         
-        self.createRow0()
-        self.createRow1()
-        self.createRow2()
+        self.createRowWidget0()
+        self.createRowWidget1()
+        self.createRowWidget2()
 
         self.allExpensesWidgetLayout.addWidget(self.allExpensesWidget_row0)
         self.allExpensesWidgetLayout.addWidget(self.allExpensesWidget_row1)
@@ -749,7 +749,7 @@ class AllExpensesWidget(QWidget):
         self.allExpensesWidgetLayout.setStretch(3, 5)
         self.allExpensesWidget.setLayout(self.allExpensesWidgetLayout)
 
-    def createRow0(self):
+    def createRowWidget0(self):
         self.allExpensesWidget_row0 = QWidget(self.allExpensesWidget)
         self.allExpensesWidget_row0Layout = QHBoxLayout(self.allExpensesWidget_row0)
         self.allExpensesTitleLabel = QLabel(self.allExpensesWidget_row0)
@@ -767,7 +767,7 @@ class AllExpensesWidget(QWidget):
         self.allExpensesWidget_row0Layout.addWidget(self.gotoDetailTabButn2)
         self.allExpensesWidget_row0.setLayout(self.allExpensesWidget_row0Layout)
 
-    def createRow1(self):
+    def createRowWidget1(self):
         self.allExpensesWidget_row1 = QWidget(self.allExpensesWidget)
         self.allExpensesWidget_row1Layout = QGridLayout(self.allExpensesWidget_row1)
         self.dailyTitleLabel = QLabel(self.allExpensesWidget_row1)
@@ -814,7 +814,7 @@ class AllExpensesWidget(QWidget):
         self.allExpensesWidget_row1Layout.addWidget(self.monthlyLabel, 1, 2, 1, 1)
         self.allExpensesWidget_row1.setLayout(self.allExpensesWidget_row1Layout)
 
-    def createRow2(self):
+    def createRowWidget2(self):
         self.allExpensesWidget_row2 = QWidget(self.allExpensesWidget)
         self.allExpensesWidget_row2Layout = QVBoxLayout(self.allExpensesWidget_row2)
         self.durationComboBox = QComboBox(self.allExpensesWidget_row2)
@@ -960,7 +960,6 @@ class AppWindow(QMainWindow):
             tabButton.setText(label)
             tabButton.setFont(self._font.font16B)
             self.tabBarWidgetLayout.addWidget(tabButton)
-            # self.tabBarWidgetLayout.addWidget(self.separator[i + 1])
             self.tabButtonList.append(tabButton)
 
         self.tabBarWidgetLayout.addItem(QSpacerItem(15, 10, QSizePolicy.Expanding, QSizePolicy.Expanding)) # Vertical Space
