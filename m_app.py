@@ -12,9 +12,10 @@ import os
 import sys
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
-# from PyQt5.QtGui import 
-
+import m_database as DB
 import m_gui as GUI
+
+database_path = "./Minh_s_expense.db"
 
 OS = sys.platform
 
@@ -26,10 +27,10 @@ def main():
             background-position: center;
         }
     """
-
+    conn = DB.ConnectDatabase("Minh_s_expense.db")
     app = QApplication(sys.argv)
     app.setStyleSheet(stylesheet)
-    window = GUI.AppWindow(app)
+    window = GUI.AppWindow(app, conn)
     window.showFullScreen()
     sys.exit(app.exec_())
 
