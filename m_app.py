@@ -31,7 +31,8 @@ def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(stylesheet)
     window = GUI.AppWindow(app, conn)
-    window.showFullScreen()
+    # window.showFullScreen()
+    window.showMaximized()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QComboBox, QMainWindow, QVBoxLayout, QHBoxLayout, QM
 from PyQt5.QtWidgets import QLabel, QFileDialog, QLineEdit, QFrame, QMenu, QInputDialog, QSpacerItem
 from PyQt5.QtWidgets import QApplication, QAction, qApp, QGroupBox, QRadioButton, QSizePolicy, QFrame
 from PyQt5.QtWidgets import QTabWidget, QWidget, QPushButton, QListWidget, QGridLayout, QStackedWidget
-from PyQt5.QtWidgets import QDialog, QListWidgetItem
+from PyQt5.QtWidgets import QDialog, QListWidgetItem, QScrollBar, QStyle
 from PyQt5.QtGui import QColor, QFont, QPixmap, QIcon, QImage, QPainter, QPen
 from PyQt5.QtChart import QChart, QChartView, QPieSeries, QPieSlice, QLineSeries, QBarSet, QPercentBarSeries, QBarCategoryAxis
 from uuid import uuid4
@@ -15,12 +15,11 @@ from datetime import datetime, date, time, timedelta
 OS = sys.platform
 username = "Minh Nguyen"
 avatar = "image/avatar.png"
-PAYMENT_METHOD = ["VN Pay", "Card Payment", "Fee", "Cash", "Momo", "Airpay", "Zalo Pay", "Transfer", "Grab by Moca", "Other Method"]
+PAYMENT_METHOD = ["Other Method", "VN Pay", "Card Payment", "Fee", "Cash", "Momo", "Airpay", "Zalo Pay", "Transfer", "Grab by Moca"]
 INCOME_TAG = {"Salary": "#277a44", "Other Income": "#72d6c2"}
 EXPENSE_TAG = {"Other": "#51546f", "Food": "#b1d672", "Bills": "#7963cd", "Entertainment": "#ff8f78", "Health": "#c13c3c", "Education": "#3dbce0", "Clothes": "#cbb64d"}
 TRANCS_TAG = dict(item for _dict in [EXPENSE_TAG, INCOME_TAG] for item in _dict.items())
 MONTH = {1 : "Jan", 2 : "Feb", 3 : "Mar", 4 : "Apr", 5 : "May", 6 : "Jun", 7 : "Jul", 8 : "Aug", 9 : "Sep", 10 : "Oct", 11 : "Nov", 12 : "Dec"}
-
 
 if OS.startswith("win32"):
     # FONT = FONT
@@ -31,6 +30,7 @@ elif OS.startswith("darwin"):
     FONT = "Serif"
 else:
     sys.exit(1)
+
 
 def currency(value, currency_symbol="VND", brief=False, round_to_decimal=True):
     if brief:
@@ -189,6 +189,7 @@ class MFont():
 
 class ShoppingItemSignals(QObject):
     signal_remove = pyqtSignal(int)
+    signal_add = pyqtSignal(dict)
 
 class ShoppingItem(QListWidgetItem):
     # signal = pyqtSignal(int)
@@ -219,11 +220,11 @@ class ShoppingItem(QListWidgetItem):
         font12B.setFamily(FONT);
         font12B.setPointSize(12);
         font12B.setBold(True);
-        widgetText = QLabel(self.widget)
-        widgetText.setText(self.itemTitle)
-        widgetText.setFont(font12B)
-        widgetText.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        widgetText.setStyleSheet("background-color: transparent; color: #7e8198; padding: 0")
+        self.widgetText = QLabel(self.widget)
+        self.widgetText.setText(self.itemTitle)
+        self.widgetText.setFont(font12B)
+        self.widgetText.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.widgetText.setStyleSheet("background-color: transparent; color: #7e8198; padding: 0")
         self.crossMarkButton = QPushButton(self.widget)
         self.crossMarkButton.setText("Remove")
         self.crossMarkButton.setFont(font10B)
@@ -244,7 +245,7 @@ class ShoppingItem(QListWidgetItem):
         hSeparator.setFixedHeight(2)
         hSeparator.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         hSeparator.setStyleSheet("background-color: #eaebec; padding-left: 10px; padding-right: 10px; padding-top: 10px")
-        self.widgetLayout.addWidget(widgetText, 0, 0, 1, 1)
+        self.widgetLayout.addWidget(self.widgetText, 0, 0, 1, 1)
         self.widgetLayout.addItem(QSpacerItem(5, 5, QSizePolicy.Expanding, QSizePolicy.Maximum), 0, 1, 1, 1) # w:15 h:15
         self.widgetLayout.addWidget(self.crossMarkButton, 0, 2, 1, 1)
         self.widgetLayout.addWidget(self.checkMarkButton, 0, 3, 1, 1)
@@ -260,7 +261,7 @@ class ShoppingItem(QListWidgetItem):
         self.remove()
 
     def checkMarkButnClickedHandle(self):
-        self.remove()
+        self.signals.signal_add.emit({"title": self.widgetText.text(), "id": self.ID})
 
     def insert(self, top=True):
         if top:
@@ -275,7 +276,7 @@ class ShoppingItem(QListWidgetItem):
         row = self.list_widget.row(self.widgetItem)
         self.list_widget.takeItem(row)
         # self.worker.signal.emit(self.ID)
-        self.signals.remove.emit(self.ID)
+        self.signals.signal_remove.emit(self.ID)
 
 class TransactionItemSignals(QObject):
     signal = pyqtSignal()
@@ -402,6 +403,8 @@ class TransactionItem(QListWidgetItem):
         row = self.list_widget.row(self.widgetItem)
         self.list_widget.takeItem(row)
 
+
+# """ ========= AccountWidget ========= """
 class AccountWidgetSignals(QObject):
     signal_prevAccount = pyqtSignal()
     signal_nextAccount = pyqtSignal()
@@ -409,9 +412,10 @@ class AccountWidgetSignals(QObject):
     signal_gotoCardTab = pyqtSignal()
 
 class AccountWidget(QWidget):
-    def __init__(self, accountWidget, _font, conn):
+    def __init__(self, accountWidget, addDialog, _font, conn):
         super(AccountWidget, self).__init__()
         self.accountWidget = accountWidget
+        self.addDialog = addDialog
         self._font = _font
         self.conn = conn
         self.signals = AccountWidgetSignals()
@@ -505,7 +509,7 @@ class AccountWidget(QWidget):
         self.gotoCardTabButn.setStyleSheet("""QPushButton{ background-image: url(image/button-icon-enabled.png); background-color: #058373; color: #d5e9e7; border: transparent; padding: 20; border-radius: 20; }
                                                 QPushButton::disabled{ background-image: url(image/button-icon-disabled.png); background-color: #f2f3f8; color: #a7a9b5; border: transparent; padding: 20; border-radius: 20; }
                                                 QPushButton::hover{ background-color: #10a391; color: #d3e3e1; border: transparent; padding: 20; border-radius: 20; }""")
-        # self.gotoCardTabButn.setEnabled(False)
+        self.gotoCardTabButn.setEnabled(False)
         self.navigatorWidgetLayout.addWidget(self.gotoDetailTabButn)
         self.navigatorWidgetLayout.addWidget(self.gotoCardTabButn)
         self.navigatorWidgetLayout.addItem(QSpacerItem(5, 5, QSizePolicy.Expanding, QSizePolicy.Maximum)) # w:15 h:15
@@ -593,13 +597,28 @@ class AccountWidget(QWidget):
         self.accountWidgetColumn1Layout.addWidget(self.colorTagIncome, 3, 4, 2, 1)
         self.accountWidgetColumn1.setLayout(self.accountWidgetColumn1Layout)
 
+    def reload(self, signals):
+        self.accountbriefLabel.setText(signals["brief"])
+        availableBalance = self.conn.querySumIncome() - self.conn.querySumExpenses()
+        self.availBalanceLabel.setText(currency(availableBalance))
+        totalExpense = self.conn.querySumExpenses(_from = signals["from"] if signals is not None else None,
+                                                    _to = signals["to"] if signals is not None else None)
+        self.expenseLabel.setText(currency(totalExpense, brief=True))
+        totalIncome = self.conn.querySumIncome(_from = signals["from"] if signals is not None else None,
+                                                    _to = signals["to"] if signals is not None else None)
+        self.incomeLabel.setText(currency(totalIncome, brief=True))
+
+
+# """ ========= ShopTodayWidget ========= """
 class ShopTodayWidgetSignals(QObject):
-    signal = pyqtSignal()
+    signal_addShopToday = pyqtSignal()
 
 class ShopTodayWidget(QWidget):
-    def __init__(self, shopTodayWidget, _font, conn):
+    def __init__(self, shopTodayWidget, addDialog, addShoppingItemDialog, _font, conn):
         super(ShopTodayWidget, self).__init__()
         self.shopTodayWidget = shopTodayWidget
+        self.addDialog = addDialog
+        self.addShoppingItemDialog = addShoppingItemDialog
         self._font = _font
         self.conn = conn
         self.signals = ShopTodayWidgetSignals()
@@ -641,7 +660,6 @@ class ShopTodayWidget(QWidget):
 
         self.shoppingListWidget = QListWidget(self.shopTodayWidget)
         self.shoppingListItems = []
-        self.reloadShoppingList(top=False)
 
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -649,6 +667,8 @@ class ShopTodayWidget(QWidget):
         sizePolicy.setHeightForWidth(self.shoppingListWidget.sizePolicy().hasHeightForWidth())
         self.shoppingListWidget.setSizePolicy(sizePolicy)
         self.shoppingListWidget.setStyleSheet("background-color: transparent; color: #dbedeb; border: transparent; padding: 10;")
+
+        self.reload()
 
         self.paddingWidget = QWidget(self.shopTodayWidget)
         self.paddingWidgetLayout = QHBoxLayout(self.paddingWidget)
@@ -664,7 +684,17 @@ class ShopTodayWidget(QWidget):
 
         shopTodayWidget.setLayout(self.shopTodayWidgetLayout)
 
-    def reloadShoppingList(self, top):
+    def addNew(self, _title, _id=None):
+        if _id is None:
+            _id = self.conn.insertRowShoppingList(_title)
+        
+        item = ShoppingItem(self.shoppingListWidget, _title, _id)
+        item.insert(top=True)
+        item.signals.signal_remove.connect(self.conn.deleteRowShoppingList)
+        item.signals.signal_add.connect(partial(self.shopTodayDone, {"title": _title, "id": _id}))
+        self.shoppingListItems.append(item)
+
+    def reload(self, signals=None):
         for i in range(len(self.shoppingListItems) - 1, -1 , -1):
             del(self.shoppingListItems[i])
 
@@ -672,22 +702,25 @@ class ShopTodayWidget(QWidget):
         self.shoppingListItems.clear()
         shoppingList = self.conn.queryRowsShoppingList()
         for _id, _title in shoppingList:
-            item = ShoppingItem(self.shoppingListWidget, _title, _id)
-            item.insert(top=top)
-            # item.worker.func(self.deleteItemInShoppingList)
-            item.signals.signal_remove.connect(self.conn.deleteRowShoppingList)
-            self.shoppingListItems.append(item)
+            self.addNew(_title, _id)
+
+    def shopTodayDone(self, signals):
+        self.addDialog.signals.signal_requestShow.emit({"title":signals["title"], "now":datetime.now()})
+        self.conn.deleteRowShoppingList(signals["id"])
 
     def plusButtonHandle(self):
-        print("show Add new Item dialog")
+        self.addShoppingItemDialog.show()
 
+
+# """ ========= LatestTrancWidget ========= """
 class LatestTrancWidgetSignals(QObject):
-    signal = pyqtSignal()
+    signal_gotoDetailTab = pyqtSignal()
 
 class LatestTrancWidget(QWidget):
-    def __init__(self, latestTrancWidget, _font, conn):
+    def __init__(self, latestTrancWidget, addDialog, _font, conn):
         super(LatestTrancWidget, self).__init__()
         self.latestTrancWidget = latestTrancWidget
+        self.addDialog = addDialog
         self._font = _font
         self.conn = conn
         self.signals = LatestTrancWidgetSignals()
@@ -716,13 +749,24 @@ class LatestTrancWidget(QWidget):
         self.latestTrancTitleLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self.latestTrancTitleLabel.setFont(self._font.font16B)
         self.latestTrancTitleLabel.setStyleSheet("background-color: transparent; color: #1d1c1c; border: transparent; padding-left: 10;")
+        self.addNewButn = QPushButton(self.latestTrancWidget_row0)
+        self.addNewButn.setText("+")
+        self.addNewButn.setFixedWidth(50)
+        self.addNewButn.setFont(self._font.font20B)
+        self.addNewButn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.addNewButn.clicked.connect(lambda: self.addDialog.signals.signal_requestShow.emit({"title":"", "now":datetime.now()}))
+        self.addNewButn.setStyleSheet("""QPushButton{ background-color: #058373; color: #cfe7e4; border: transparent; padding: 5; border-radius: 10; }
+                                                QPushButton:hover{ background-color: #0eab97; color: #c3e3df; border: transparent; padding: 5; border-radius: 10; }""")
         self.moreDetailTabButn2 = QPushButton(self.latestTrancWidget_row0)
         self.moreDetailTabButn2.setText("➔")
+        self.moreDetailTabButn2.setFixedWidth(50)
         self.moreDetailTabButn2.setFont(self._font.font14B)
         self.moreDetailTabButn2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.moreDetailTabButn2.clicked.connect(lambda: self.signals.signal_gotoDetailTab.emit())
         self.moreDetailTabButn2.setStyleSheet("""QPushButton{ background-color: #058373; color: #cfe7e4; border: transparent; padding: 10; border-radius: 10; }
                                                 QPushButton:hover{ background-color: #0eab97; color: #c3e3df; border: transparent; padding: 10; border-radius: 10; }""")
         self.latestTrancWidget_row0Layout.addWidget(self.latestTrancTitleLabel)
+        self.latestTrancWidget_row0Layout.addWidget(self.addNewButn)
         self.latestTrancWidget_row0Layout.addWidget(self.moreDetailTabButn2)
         self.latestTrancWidget_row0.setLayout(self.latestTrancWidget_row0Layout)
 
@@ -757,7 +801,7 @@ class LatestTrancWidget(QWidget):
         self.trancListWidget.setStyleSheet("background-color: transparent; color: #dbedeb; border: transparent; border-radius: 0px;")
         self.trancListItems = []
         
-        self.reloadTransactions(top=True)
+        self.reload()
 
         self.latestTrancWidget_row1Layout.addWidget(self.trancListWidget)
         self.latestTrancWidget_row1.setLayout(self.latestTrancWidget_row1Layout)
@@ -774,24 +818,37 @@ class LatestTrancWidget(QWidget):
         else:
             return "{}.{}.{}".format(str(date.year)[2:], str(date.month).zfill(2), str(date.day).zfill(2))
 
-    def reloadTransactions(self, top):
-        for i in range(len(self.trancListItems) - 1, -1 , -1):
-            del(self.trancListItems[i])
+    def addNew(self, _timeTranc, _titleTranc, _payment, _type, _cost, _id=None):
+        if _id is None:
+            _id = self.conn.insertRowTransactions(_timeTranc, _titleTranc, _payment, _type, _cost)
+
+        item = TransactionItem(self.trancListWidget, _id, self._func(_timeTranc), _titleTranc, _payment, _type, _cost)
+        item.insert(top=True)
+        self.trancListItems.append(item)
+
+    def reload(self, signals=None):
+        for i in range(len(self.trancListItems) - 1, -1 , -1): del(self.trancListItems[i])
 
         self.trancListWidget.clear()
         self.trancListItems.clear()
-        for _id, _timeTranc, _titleTranc, _payment, _type, _cost in self.conn.queryRowsTransactions():
-            item = TransactionItem(self.trancListWidget, _id, self._func(_timeTranc), _titleTranc, _payment, _type, _cost)
-            item.insert(top=top)
-            self.trancListItems.append(item)
+        
+        for _id, _timeTranc, _titleTranc, _payment, _type, _cost in \
+                    self.conn.queryRowsTransactions(_from = signals["from"] if signals is not None else None,
+                                                        _to = signals["to"] if signals is not None else None):
+            self.addNew(_timeTranc, _titleTranc, _payment, _type, _cost, _id)
+            
 
+# """ ========= AllExpensesWidget ========= """
 class AllExpensesWidgetSignals(QObject):
-    signal = pyqtSignal()
+    signal_gotoDetailTab = pyqtSignal()
+    signal_updateInfoAll = pyqtSignal(dict)
 
 class AllExpensesWidget(QWidget):
-    def __init__(self, allExpensesWidget, _font, conn): 
+    ItemsContent = ["all", "this month", "last month", "this year", "last year", "custom"]
+    def __init__(self, allExpensesWidget, addDialog, _font, conn): 
         super(AllExpensesWidget, self).__init__()
         self.allExpensesWidget = allExpensesWidget
+        self.addDialog = addDialog
         self._font = _font
         self.conn = conn
         self.signals = AllExpensesWidgetSignals()
@@ -828,6 +885,7 @@ class AllExpensesWidget(QWidget):
         self.gotoDetailTabButn2.setText("➔")
         self.gotoDetailTabButn2.setFont(self._font.font14B)
         self.gotoDetailTabButn2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.gotoDetailTabButn2.clicked.connect(lambda: self.signals.signal_gotoDetailTab.emit())
         self.gotoDetailTabButn2.setStyleSheet("""QPushButton{ background-color: #058373; color: #cfe7e4; border: transparent; padding: 10; border-radius: 10; }
                                                     QPushButton:hover{ background-color: #0eab97; color: #c3e3df; border: transparent; padding: 10; border-radius: 10; }""")
         self.allExpensesWidget_row0Layout.addWidget(self.allExpensesTitleLabel)
@@ -856,19 +914,16 @@ class AllExpensesWidget(QWidget):
         self.monthlyTitleLabel.setFont(self._font.font12B)
         self.monthlyTitleLabel.setStyleSheet("background-color: transparent; color: #72758e; border: transparent; padding-left: 10; padding-bottom: 0;")
         self.dailyLabel = QLabel(self.allExpensesWidget_row1)
-        self.dailyLabel.setText(currency(275400, brief=True))
         self.dailyLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.dailyLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.dailyLabel.setFont(self._font.font18B)
         self.dailyLabel.setStyleSheet("background-color: transparent; color: #1d1c1c; border: transparent; padding-left: 10; padding-bottom: 0;")
         self.weeklyLabel = QLabel(self.allExpensesWidget_row1)
-        self.weeklyLabel.setText(currency(1426000, brief=True))
         self.weeklyLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.weeklyLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.weeklyLabel.setFont(self._font.font18B)
         self.weeklyLabel.setStyleSheet("background-color: transparent; color: #1d1c1c; border: transparent; padding-left: 10; padding-bottom: 0;")
         self.monthlyLabel = QLabel(self.allExpensesWidget_row1)
-        self.monthlyLabel.setText(currency(8200000, brief=True))
         self.monthlyLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.monthlyLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.monthlyLabel.setFont(self._font.font18B)
@@ -889,23 +944,14 @@ class AllExpensesWidget(QWidget):
         self.durationComboBox.setStyleSheet("""QComboBox{ background-color: transparent; padding-left: 15px }
                                             QComboBox:QAbstractItemView{ background-color: white; color:orange; padding-left: 15px }""")
         self.durationComboBox.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        self.durationComboBox.addItem("Today")
-        self.durationComboBox.addItem("Yesterday")
-        self.durationComboBox.addItem("2-day ago")
-        self.durationComboBox.addItem("a week ago")
-        self.durationComboBox.addItem("two-week ago")
-        self.durationComboBox.addItem("a month ago")
-        self.durationComboBox.addItem("custom")
+        for itemContent in self.ItemsContent:
+            self.durationComboBox.addItem(itemContent)
+
+        self.durationComboBox.activated[str].connect(self.onActivated)
         self.chart = QChart()
         self.chartview = QChartView(self.chart)
         self.chart.setAnimationOptions(QChart.SeriesAnimations)
         self.chartview.setRenderHint(QPainter.Antialiasing)
-
-        r = self.conn.querySumExpensesInEachTag()
-        tag = [_r[0] for _r in r]
-        _sum = [_r[1] for _r in r]
-        
-        self.createChart(_sum, tag)
 
         self.allExpensesWidget_row2Layout.addWidget(self.durationComboBox)
         self.allExpensesWidget_row2Layout.addWidget(self.chartview)
@@ -928,7 +974,11 @@ class AllExpensesWidget(QWidget):
         self.padding2Layout.addWidget(self.padding)
         self.padding2.setLayout(self.padding2Layout)
 
-    def createChart(self, data, tag):
+    def createChart(self, signals):
+        r = self.conn.querySumExpensesInEachTag(_from = signals["from"] if signals is not None else None,
+                                                    _to = signals["to"] if signals is not None else None)
+        tag = [_r[0] for _r in r]
+        data = [_r[1] for _r in r]
         color = [TRANCS_TAG[t] for t in tag]
         self.chart.removeAllSeries()
         series = QPieSeries()
@@ -950,6 +1000,517 @@ class AllExpensesWidget(QWidget):
             self.chart.legend().markers(series)[i].setLabel(_tag)
             self.chart.legend().markers(series)[i].setFont(self._font.font10B)
 
+    def dateConvention(self, date):
+        return "{}, {}{} {}".format(MONTH[date.month],
+                                    date.day,
+                                    "st" if date.day in [1, 21, 31] \
+                                        else "nd" \
+                                            if date.day in [2, 22] \
+                                                else "rd" \
+                                                    if date.day in [3, 23] \
+                                                        else "th",
+                                    str(date.year))
+
+    def onActivated(self, text):
+        if text == "all":
+            timeline_from = datetime.fromtimestamp(self.conn.queryMinTransactionTime())
+            timeline_to = datetime.now()
+            self.signals.signal_updateInfoAll.emit({"brief":"from {} to now".format(self.dateConvention(timeline_from)),
+                                                    "from": timeline_from.timestamp(),
+                                                    "to": timeline_to.timestamp()})
+        elif text == "this month":
+            now = datetime.now()
+            timeline_from = datetime(year=now.year, month=now.month, day=1)
+            # timeline_to = (datetime(year=now.year, month=now.month + 1, day=1) if now.month != 12 \
+            #                 else datetime(year=now.year+1, month=1, day=1)) \
+            #                 - timedelta(seconds=1)
+            timeline_to = now
+            self.signals.signal_updateInfoAll.emit({"brief":"from {} to now".format(self.dateConvention(timeline_from)),
+                                                    "from": timeline_from.timestamp(),
+                                                    "to": timeline_to.timestamp()})
+        elif text == "last month":
+            now = datetime.now()
+            timeline_to = datetime(year=now.year, month=now.month, day=1) - timedelta(seconds=1)
+            timeline_from = datetime(year=timeline_to.year, month=timeline_to.month, day=1)
+            self.signals.signal_updateInfoAll.emit({"brief":"from {} to {}".format(self.dateConvention(timeline_from), \
+                                                                                    self.dateConvention(timeline_to)),
+                                                    "from": timeline_from.timestamp(),
+                                                    "to": timeline_to.timestamp()})
+        elif text == "this year":
+            now = datetime.now()
+            timeline_from = datetime(year=now.year, month=1, day=1)
+            timeline_to = datetime.now()
+            self.signals.signal_updateInfoAll.emit({"brief":"from {} to now".format(self.dateConvention(timeline_from)),
+                                                    "from": timeline_from.timestamp(),
+                                                    "to": timeline_to.timestamp()})
+        elif text == "last year":
+            now = datetime.now()
+            timeline_to = datetime(year=now.year, month=1, day=1) - timedelta(seconds=1)
+            timeline_from = datetime(year=timeline_to.year, month=1, day=1)
+            self.signals.signal_updateInfoAll.emit({"brief":"from {} to {}".format(self.dateConvention(timeline_from), \
+                                                                                    self.dateConvention(timeline_to)),
+                                                    "from": timeline_from.timestamp(),
+                                                    "to": timeline_to.timestamp()})
+        elif text == "custom":
+            timeline_from = datetime(year=2020, month=5, day=14)
+            timeline_to = datetime(year=2020, month=10, day=22) - timedelta(seconds=1) + timedelta(days=1)
+            self.signals.signal_updateInfoAll.emit({"brief":"from {} to {}".format(self.dateConvention(timeline_from), \
+                                                                                    self.dateConvention(timeline_to)),
+                                                    "from": timeline_from.timestamp(),
+                                                    "to": timeline_to.timestamp()})
+        else:
+            return
+
+    def reload(self, signals):
+        self.createChart(signals=signals)
+        _now = datetime.now()
+
+        dailyExpenses = self.conn.querySumExpenses(_from=datetime(_now.year, _now.month, _now.day).timestamp(),
+                                    _to=(datetime(_now.year, _now.month, _now.day) + timedelta(days=1) - timedelta(seconds=1)).timestamp())
+
+        weeklyExpenses = self.conn.querySumExpenses(_from=(datetime(_now.year, _now.month, _now.day) - timedelta(days=_now.weekday())).timestamp(),
+                                    _to=(datetime(_now.year, _now.month, _now.day) + timedelta(days=7 - _now.weekday()) - timedelta(seconds=1)).timestamp())
+
+        monthlyExpenses = self.conn.querySumExpenses(_from=datetime(_now.year, _now.month, 1).timestamp(),
+                                    _to=((datetime(year=_now.year, month=_now.month + 1, day=1) if _now.month != 12 \
+                                                else datetime(year=_now.year+1, month=1, day=1)) \
+                                                - timedelta(seconds=1)).timestamp())
+        self.dailyLabel.setText(currency(dailyExpenses, brief=True))
+        self.weeklyLabel.setText(currency(weeklyExpenses, brief=True))
+        self.monthlyLabel.setText(currency(monthlyExpenses, brief=True))
+
+
+# """ ========= AddDialog ========= """
+class AddDialogSignals(QObject):
+    signal_addNewTranc = pyqtSignal()
+    signal_requestShow = pyqtSignal(dict)
+
+class Message(QDialog):
+    def __init__(self, app, _font):
+        super(Message, self).__init__()
+        self._font = _font
+        self.setStyleSheet("""QDialog { 
+                background-image: url(image/contour-dark-blue-lines-white.jpg);
+                background-repeat: no-repeat;
+                background-position: center;
+                border-radius: 40;
+            }""")
+        self.setWindowTitle("MyApp!")
+        self.setGeometry(QStyle.alignedRect(\
+                            Qt.LeftToRight,
+                            Qt.AlignCenter,
+                            QSize(app.primaryScreen().availableGeometry().width()//3,   
+                                    app.primaryScreen().availableGeometry().height()//4),
+                        app.desktop().availableGeometry()));
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint);
+        self.widgetDialogLayout = QVBoxLayout(self)
+
+        self.message = QLabel(self)
+        self.message.setFont(self._font.font14B)
+        self.message.setAlignment(Qt.AlignCenter)
+        self.message.setStyleSheet("background-color: transparent; color: #db3a2e;")
+        self.message.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+        self.createRowWidget2()
+
+        self.widgetDialogLayout.addWidget(self.message)
+        self.widgetDialogLayout.addWidget(self.rowWidget2)
+        
+        self.setLayout(self.widgetDialogLayout)
+
+    def createRowWidget2(self):
+        self.rowWidget2 = QWidget(self)
+        self.rowWidget2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.rowWidget2Layout = QHBoxLayout(self.rowWidget2)
+
+        self.okButton = QPushButton(self.rowWidget2)
+        self.okButton.setText("OK")
+        self.okButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.okButton.clicked.connect(self.okButtonHandle)
+        self.okButton.setFont(self._font.font16B)
+        self.okButton.setStyleSheet("""QPushButton{ background-image: url(image/button-icon-enabled.png); background-color: #058373; color: #d5e9e7; border: transparent; padding: 20; border-radius: 20; }
+                                        QPushButton::disabled{ background-image: url(image/button-icon-disabled.png); background-color: #f2f3f8; color: #a7a9b5; border: transparent; padding: 20; border-radius: 20; }
+                                        QPushButton::hover{ background-color: #10a391; color: #d3e3e1; border: transparent; padding: 20; border-radius: 20; }""")
+
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.addWidget(self.okButton)
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.setStretch(0, 3)
+        self.rowWidget2Layout.setStretch(1, 2)
+        self.rowWidget2Layout.setStretch(2, 3)
+        self.rowWidget2.setLayout(self.rowWidget2Layout)
+
+    def okButtonHandle(self):
+        self.close()
+
+    def show(self, message):
+        self.message.setText(message)
+        self.exec_()
+
+    def _closeDialogEvent(self, event):
+        pass
+
+class AddDialog(QDialog):
+    def __init__(self, app, conn, _font):
+        super(AddDialog, self).__init__()
+        self.conn = conn
+        self._font = _font
+        self.setStyleSheet("""QDialog { 
+                background-image: url(image/contour-lines-cyan-dark-blue.jpg);
+                background-repeat: no-repeat;
+                background-position: center;
+                border-radius: 40;
+            }""")
+        self.setWindowTitle("MyApp!")
+        self.setGeometry(QStyle.alignedRect(\
+                            Qt.LeftToRight,
+                            Qt.AlignCenter,
+                            QSize(app.primaryScreen().availableGeometry().width()//2, 
+                                    app.primaryScreen().availableGeometry().height()//2),
+                        app.desktop().availableGeometry()));
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint);
+        self.message = Message(app, self._font)
+        self.signals = AddDialogSignals()
+        self.signals.signal_requestShow.connect(self.requestShow)
+        self.widgetDialogLayout = QVBoxLayout(self)
+
+        self.dialogTitle = QLabel(self)
+        self.dialogTitle.setFont(self._font.font20B)
+        self.dialogTitle.setAlignment(Qt.AlignCenter)
+        self.dialogTitle.setText("NEW TRANSACTION")
+        self.dialogTitle.setStyleSheet("background-color: transparent; color: #f0f0f0;")
+        self.dialogTitle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+        self.createRowWidget0()
+        self.createRowWidget1()
+        self.createRowWidget2()
+        # self.notificationLabel = QLabel(self)
+
+        self.widgetDialogLayout.addWidget(self.dialogTitle)
+        self.widgetDialogLayout.addWidget(self.rowWidget0)
+        self.widgetDialogLayout.addWidget(self.rowWidget1)
+        self.widgetDialogLayout.addWidget(self.rowWidget2)
+        self.setLayout(self.widgetDialogLayout)
+        self.closeEvent = self._closeDialogEvent
+
+    def createRowWidget0(self):
+        self.rowWidget0 = QWidget(self)
+        self.rowWidget0.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.rowWidget0Layout = QHBoxLayout(self.rowWidget0)
+        self.rowWidget0Layout.setSpacing(5)
+
+        self.trancTitle = QLineEdit(self.rowWidget0)
+        self.trancTitle.setFont(self._font.font16B)
+        self.trancTitle.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px; padding: 15px;")
+        self.trancTitle.setPlaceholderText("Transaction")
+        self.trancTitle.setAlignment(Qt.AlignCenter)
+
+        self.amount = QLineEdit(self.rowWidget0)
+        self.amount.setFont(self._font.font16B)
+        self.amount.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px; padding: 15px;")
+        self.amount.setPlaceholderText("Cost")
+        self.amount.setAlignment(Qt.AlignCenter)
+
+        self.rowWidget0Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget0Layout.addWidget(self.trancTitle)
+        self.rowWidget0Layout.addWidget(self.amount)
+        self.rowWidget0Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget0Layout.setStretch(0, 1)
+        self.rowWidget0Layout.setStretch(1, 8)
+        self.rowWidget0Layout.setStretch(2, 2)
+        self.rowWidget0Layout.setStretch(3, 1)
+        self.rowWidget0.setLayout(self.rowWidget0Layout)
+
+    def createRowWidget1(self):
+        self.rowWidget1 = QWidget(self)
+        self.rowWidget1.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.rowWidget1Layout = QHBoxLayout(self.rowWidget1)
+        self.rowWidget1Layout.setSpacing(0)
+
+        slash1 = QLabel(self.rowWidget1)
+        slash1.setText("/")
+        slash1.setFont(self._font.font24B)
+        slash1.setStyleSheet("color: white; border: transparent; padding: 3px;")
+        slash1.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        slash2 = QLabel(self.rowWidget1)
+        slash2.setText("/")
+        slash2.setFont(self._font.font24B)
+        slash2.setStyleSheet("color: white; border: transparent; padding: 3px;")
+        slash2.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        slash3 = QLabel(self.rowWidget1)
+        slash3.setText("-")
+        slash3.setFont(self._font.font24B)
+        slash3.setStyleSheet("color: white; border: transparent; padding: 10px;")
+        slash3.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        slash4 = QLabel(self.rowWidget1)    
+        slash4.setText(":")
+        slash4.setFont(self._font.font24B)
+        slash4.setStyleSheet("color: white; border: transparent; padding: 3px;")
+        slash4.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+
+        self.yearLineEdit = QLineEdit(self.rowWidget1)
+        self.yearLineEdit.setFont(self._font.font14B)
+        self.yearLineEdit.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px;")
+        self.yearLineEdit.setPlaceholderText("YYYY")
+        self.yearLineEdit.setFixedSize(100, 50)
+        self.yearLineEdit.setAlignment(Qt.AlignCenter)
+
+        self.monthLineEdit = QLineEdit(self.rowWidget1)
+        self.monthLineEdit.setFont(self._font.font14B)
+        self.monthLineEdit.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px;")
+        self.monthLineEdit.setPlaceholderText("MM")
+        self.monthLineEdit.setFixedSize(50, 50)
+        self.monthLineEdit.setAlignment(Qt.AlignCenter)
+
+        self.dayLineEdit = QLineEdit(self.rowWidget1)
+        self.dayLineEdit.setFont(self._font.font14B)
+        self.dayLineEdit.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px;")
+        self.dayLineEdit.setPlaceholderText("DD")
+        self.dayLineEdit.setFixedSize(50, 50)
+        self.dayLineEdit.setAlignment(Qt.AlignCenter)
+
+        self.hourLineEdit = QLineEdit(self.rowWidget1)
+        self.hourLineEdit.setFont(self._font.font14B)
+        self.hourLineEdit.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px;")
+        self.hourLineEdit.setPlaceholderText("hh")
+        self.hourLineEdit.setFixedSize(50, 50)
+        self.hourLineEdit.setAlignment(Qt.AlignCenter)
+
+        self.minuteLineEdit = QLineEdit(self.rowWidget1)
+        self.minuteLineEdit.setFont(self._font.font14B)
+        self.minuteLineEdit.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px;")
+        self.minuteLineEdit.setPlaceholderText("mm")
+        self.minuteLineEdit.setFixedSize(50, 50)
+        self.minuteLineEdit.setAlignment(Qt.AlignCenter)
+
+        self.typeTrancComboBox = QComboBox(self.rowWidget1)
+        self.typeTrancComboBox.setFont(self._font.font14B)
+        self.typeTrancComboBox.setStyleSheet("""QComboBox{ background-color: rgba(255, 255, 255, 0.95); color: #575757; padding-left: 10px; padding-bottom: 5px; padding-top: 5px; border: transparent;}
+                                            QComboBox:QAbstractItemView{ background-color: rgba(255, 255, 255, 0.95); color: #575757; padding-bottom: 5px; padding-top: 5px; color:orange; padding-left: 10px}""")
+        self.typeTrancComboBox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.typeTrancComboBox.setFixedHeight(50)
+        for k in TRANCS_TAG.keys():
+            self.typeTrancComboBox.addItem(k)
+
+        self.methodTrancComboBox = QComboBox(self.rowWidget1)
+        self.methodTrancComboBox.setFont(self._font.font14B)
+        self.methodTrancComboBox.setStyleSheet("""QComboBox{ background-color: rgba(255, 255, 255, 0.95); color: #575757; padding-left: 10px; padding-bottom: 5px; padding-top: 5px; border: transparent;}
+                                            QComboBox:QAbstractItemView{ background-color: rgba(255, 255, 255, 0.95); color: #575757; padding-bottom: 5px; padding-top: 5px; color:orange; padding-left: 10px}""")
+        self.methodTrancComboBox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.methodTrancComboBox.setFixedHeight(50)
+        for k in PAYMENT_METHOD:
+            self.methodTrancComboBox.addItem(k)
+
+        self.rowWidget1Layout.addItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget1Layout.addWidget(self.yearLineEdit)
+        self.rowWidget1Layout.addWidget(slash1)
+        self.rowWidget1Layout.addWidget(self.monthLineEdit)
+        self.rowWidget1Layout.addWidget(slash2)
+        self.rowWidget1Layout.addWidget(self.dayLineEdit)
+        self.rowWidget1Layout.addWidget(slash3)
+        self.rowWidget1Layout.addWidget(self.hourLineEdit)
+        self.rowWidget1Layout.addWidget(slash4)
+        self.rowWidget1Layout.addWidget(self.minuteLineEdit)
+        self.rowWidget1Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget1Layout.addWidget(self.typeTrancComboBox)
+        self.rowWidget1Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget1Layout.addWidget(self.methodTrancComboBox)
+        self.rowWidget1Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget1Layout.setStretch(0, 1)
+        self.rowWidget1Layout.setStretch(10, 2)
+        self.rowWidget1Layout.setStretch(11, 7)
+        self.rowWidget1Layout.setStretch(12, 1)
+        self.rowWidget1Layout.setStretch(13, 7)
+        self.rowWidget1Layout.setStretch(14, 1)
+        self.rowWidget1.setLayout(self.rowWidget1Layout)
+
+    def createRowWidget2(self):
+        self.rowWidget2 = QWidget(self)
+        self.rowWidget2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.rowWidget2Layout = QHBoxLayout(self.rowWidget2)
+
+        self.addButton = QPushButton(self.rowWidget2)
+        self.addButton.setText("Add")
+        self.addButton.clicked.connect(self.addButtonHandle)
+        self.addButton.setFont(self._font.font20B)
+        self.addButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.addButton.setStyleSheet("""QPushButton{ background-color: #e89b27; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                        QPushButton::pressed{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }
+                                        QPushButton::hover{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }""")
+
+        self.cancelButton = QPushButton(self.rowWidget2)
+        self.cancelButton.setText("Cancel")
+        self.cancelButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.cancelButton.clicked.connect(self.cancelButtonHandle)
+        self.cancelButton.setFont(self._font.font20B)
+        self.cancelButton.setStyleSheet("""QPushButton{ background-color: #e89b27; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                            QPushButton::pressed{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }
+                                            QPushButton::hover{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }""")
+
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.addWidget(self.addButton)
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.addWidget(self.cancelButton)
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.setStretch(0, 3)
+        self.rowWidget2Layout.setStretch(1, 2)
+        self.rowWidget2Layout.setStretch(2, 3)
+        self.rowWidget2Layout.setStretch(3, 2)
+        self.rowWidget2Layout.setStretch(4, 3)
+        self.rowWidget2.setLayout(self.rowWidget2Layout)
+
+    def addButtonHandle(self):
+        if self.trancTitle.text()=="":
+            self.message.show("Name of transaction is empty")
+        elif self.amount.text()=="":
+            self.message.show("Cost is empty")
+        else:
+            year = int(self.yearLineEdit.text())
+            month = int(self.monthLineEdit.text())
+            day = int(self.dayLineEdit.text())
+            hour = int(self.hourLineEdit.text())
+            minute = int(self.minuteLineEdit.text())
+            try:
+                self.conn.insertRowTransactions(_time=datetime(year=year, month=month, day=day, hour=hour, minute=minute).timestamp(),
+                                                title=self.trancTitle.text(),
+                                                paymentMethod=self.methodTrancComboBox.currentText(),
+                                                trancTag=self.typeTrancComboBox.currentText(),
+                                                amount=int(self.amount.text()))
+                self.signals.signal_addNewTranc.emit()
+                self.close()
+            except ValueError:
+                self.message.show("Invalid datetime")
+            except TypeError:
+                self.message.show("Invalid value")
+
+    def cancelButtonHandle(self):
+        self.close()
+
+    def requestShow(self, signals):
+        self.trancTitle.setText(signals["title"])
+        self.amount.setText("")
+        self.yearLineEdit.setText(str(signals["now"].year))
+        self.monthLineEdit.setText(str(signals["now"].month))
+        self.dayLineEdit.setText(str(signals["now"].day))
+        self.hourLineEdit.setText(str(signals["now"].hour))
+        self.minuteLineEdit.setText(str(signals["now"].minute))
+        self.exec_()
+
+    def _closeDialogEvent(self, event):
+        pass
+
+class AddShoppingItemDialogSignals(QObject):
+    signal_addNewItem = pyqtSignal(str)
+
+class AddShoppingItemDialog(QDialog):
+    def __init__(self, app, conn, _font):
+        super(AddShoppingItemDialog, self).__init__()
+        self.conn = conn
+        self._font = _font
+        self.setStyleSheet("""QDialog { 
+                background-image: url(image/contour-lines-cyan-dark-blue.jpg);
+                background-repeat: no-repeat;
+                background-position: center;
+                border-radius: 40;
+            }""")
+        self.setWindowTitle("MyApp!")
+        self.setGeometry(QStyle.alignedRect(\
+                            Qt.LeftToRight,
+                            Qt.AlignCenter,
+                            QSize(app.primaryScreen().availableGeometry().width()//3,   
+                                    app.primaryScreen().availableGeometry().height()//3),
+                        app.desktop().availableGeometry()));
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint);
+        self.signals = AddShoppingItemDialogSignals()
+        self.widgetDialogLayout = QVBoxLayout(self)
+
+        self.dialogTitle = QLabel(self)
+        self.dialogTitle.setFont(self._font.font20B)
+        self.dialogTitle.setAlignment(Qt.AlignCenter)
+        self.dialogTitle.setText("New shopping item")
+        self.dialogTitle.setStyleSheet("background-color: transparent; color: #f0f0f0;")
+        self.dialogTitle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+        self.createRowWidget0()
+        self.createRowWidget2()
+
+        self.widgetDialogLayout.addWidget(self.dialogTitle)
+        self.widgetDialogLayout.addWidget(self.rowWidget0)
+        self.widgetDialogLayout.addWidget(self.rowWidget2)
+        
+        self.setLayout(self.widgetDialogLayout)
+
+    def createRowWidget0(self):
+        self.rowWidget0 = QWidget(self)
+        self.rowWidget0.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.rowWidget0Layout = QHBoxLayout(self.rowWidget0)
+        self.rowWidget0Layout.setSpacing(5)
+
+        self.shoppingItemTitle = QLineEdit(self.rowWidget0)
+        self.shoppingItemTitle.setFont(self._font.font16B)
+        self.shoppingItemTitle.setStyleSheet("background-color: rgba(255, 255, 255, 0.95); color: #575757; border: 3px solid white; border-radius: 10px; padding: 15px;")
+        self.shoppingItemTitle.setPlaceholderText("Shopping item title")
+        self.shoppingItemTitle.setAlignment(Qt.AlignCenter)
+        
+        self.rowWidget0Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget0Layout.addWidget(self.shoppingItemTitle)
+        self.rowWidget0Layout.addItem(QSpacerItem(10, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget0Layout.setStretch(0, 1)
+        self.rowWidget0Layout.setStretch(1, 8)
+        self.rowWidget0Layout.setStretch(2, 1)
+        self.rowWidget0.setLayout(self.rowWidget0Layout)
+
+    def createRowWidget2(self):
+        self.rowWidget2 = QWidget(self)
+        self.rowWidget2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.rowWidget2Layout = QHBoxLayout(self.rowWidget2)
+
+        self.addButton = QPushButton(self.rowWidget2)
+        self.addButton.setText("Add")
+        self.addButton.clicked.connect(self.addButtonHandle)
+        self.addButton.setFont(self._font.font20B)
+        self.addButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.addButton.setStyleSheet("""QPushButton{ background-color: #e89b27; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                        QPushButton::pressed{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }
+                                        QPushButton::hover{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }""")
+
+        self.cancelButton = QPushButton(self.rowWidget2)
+        self.cancelButton.setText("Cancel")
+        self.cancelButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.cancelButton.clicked.connect(self.cancelButtonHandle)
+        self.cancelButton.setFont(self._font.font20B)
+        self.cancelButton.setStyleSheet("""QPushButton{ background-color: #e89b27; color: #ffffff; border: transparent; padding: 5; border-radius: 10; }
+                                            QPushButton::pressed{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }
+                                            QPushButton::hover{ background-color: #ffb274; color: #fffdfa; border: #fffdfa solid 3px; padding: 5; border-radius: 10; }""")
+
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.addWidget(self.addButton)
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.addWidget(self.cancelButton)
+        self.rowWidget2Layout.addItem(QSpacerItem(20, 0, QSizePolicy.Expanding, QSizePolicy.Expanding)) # w:20 h:10
+        self.rowWidget2Layout.setStretch(0, 3)
+        self.rowWidget2Layout.setStretch(1, 2)
+        self.rowWidget2Layout.setStretch(2, 3)
+        self.rowWidget2Layout.setStretch(3, 2)
+        self.rowWidget2Layout.setStretch(4, 3)
+        self.rowWidget2.setLayout(self.rowWidget2Layout)
+
+    def addButtonHandle(self):
+        self.signals.signal_addNewItem.emit(self.shoppingItemTitle.text())
+        self.close()
+
+    def cancelButtonHandle(self):
+        self.close()
+
+    def show(self):
+        self.shoppingItemTitle.setText("")
+        self.exec_()
+
+    def _closeDialogEvent(self, event):
+        pass
+
+
+# """ ========= AppWindow ========= """
 class AppWindowSignals(QObject):
     signal = pyqtSignal()
 
@@ -958,11 +1519,12 @@ class AppWindow(QMainWindow):
         super(AppWindow, self).__init__()
         screen = app.primaryScreen()
         self.conn = conn
+        self._font = MFont()
         rect = screen.availableGeometry()
         self.title = "Ứng dụng quản lý chi tiêu"
         self.l = 0
         if OS.startswith("win"):
-            self.t = 0
+            self.t = 30
         elif OS.startswith("linux"):
             self.t = 0
         elif OS.startswith("darwin"):
@@ -971,14 +1533,16 @@ class AppWindow(QMainWindow):
             sys.exit(1)
         self.w = rect.width()
         self.h = rect.height() - self.t
-        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint);
+        # self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint);
+        self.setWindowFlags(Qt.Window);
+        self.addDialog = AddDialog(app, conn, self._font)
+        self.addShoppingItemDialog = AddShoppingItemDialog(app, self.conn, self._font)
         self.initUI()
         self.closeEvent = self._closeEvent
 
     def initUI(self):
         self.setWindowTitle(self.title)
-        # self.setGeometry(self.l, self.t, self.w, self.h)
-        self._font = MFont()
+        self.setGeometry(self.l, self.t, self.w, self.h)
         self.widget = QWidget()
         # self.widget.setStyleSheet("background-color: #f2f3f7")
         self.windowLayout = QGridLayout(self.widget)
@@ -1002,6 +1566,8 @@ class AppWindow(QMainWindow):
         self.setCentralWidget(self.widget)
 
         self.login("Minh Nguyen Thi", "maminhhh", "image/avatar.png")
+        self.addDialog.signals.signal_addNewTranc.connect(lambda: self.allExpensesWidget.onActivated(self.allExpensesWidget.durationComboBox.currentText()))
+        self.addShoppingItemDialog.signals.signal_addNewItem.connect(lambda title: self.shopTodayWidget.addNew(title))
 
     def initTabBar(self):
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
@@ -1104,6 +1670,8 @@ class AppWindow(QMainWindow):
         self.stackedWidget.addWidget(self.initTransactionsTab())
         self.stackedWidget.addWidget(self.initCardsTab())
         self.stackedWidget.addWidget(self.initGoldForexRateTab())
+        self.allExpensesWidget.onActivated("this month")
+        self.allExpensesWidget.durationComboBox.setCurrentText("this month")
 
     def initMyAccountTab(self):
         tabWidget = QWidget(self.stackedWidget)
@@ -1127,14 +1695,20 @@ class AppWindow(QMainWindow):
         tabWidgetLayout.addWidget(tabWidgetRow1)
         tabWidgetLayout.setSpacing(0)
 
-        self.accountWidget = AccountWidget(QWidget(tabWidget), self._font, self.conn)
+        self.accountWidget = AccountWidget(QWidget(tabWidget), self.addDialog, self._font, self.conn)
         # self.accountWidget.signals.signal_prevAccount.connect()
         # self.accountWidget.signals.signal_nextAccount.connect()
         self.accountWidget.signals.signal_gotoDetailTab.connect(partial(self.onChangeTab, 1))
         self.accountWidget.signals.signal_gotoCardTab.connect(partial(self.onChangeTab, 2))
-        self.shopTodayWidget = ShopTodayWidget(QWidget(tabWidget), self._font, self.conn)
-        self.latestTrancWidget = LatestTrancWidget(QWidget(tabWidget), self._font, self.conn)
-        self.allExpensesWidget = AllExpensesWidget(QWidget(tabWidget), self._font, self.conn)
+
+        self.shopTodayWidget = ShopTodayWidget(QWidget(tabWidget), self.addDialog, self.addShoppingItemDialog, self._font, self.conn)
+
+        self.latestTrancWidget = LatestTrancWidget(QWidget(tabWidget), self.addDialog, self._font, self.conn)
+        self.latestTrancWidget.signals.signal_gotoDetailTab.connect(partial(self.onChangeTab, 1))
+
+        self.allExpensesWidget = AllExpensesWidget(QWidget(tabWidget), self.addDialog, self._font, self.conn)
+        self.allExpensesWidget.signals.signal_gotoDetailTab.connect(partial(self.onChangeTab, 1))
+        self.allExpensesWidget.signals.signal_updateInfoAll.connect(self.reloadMyAccountTab)
 
         tabWidgetRow0Layout.addWidget(self.accountWidget.accountWidget)
         tabWidgetRow0Layout.addItem(QSpacerItem(15, 15, QSizePolicy.Maximum, QSizePolicy.Maximum)) # w:15 h:15
@@ -1173,13 +1747,15 @@ class AppWindow(QMainWindow):
     def _closeEvent(self, event):
         print("__close AppWindow__")
 
-    def updateAccountWidget(self, _from=None, _to=None):
-        self.accountWidget.accountbriefLabel.setText("from {}, {} {} to {}, {} {}".format("Sep", "16th", "2020", "Oct", "22nd", "2020"))
-
     def login(self, username, username_short, avatar):
         self.accountWidget.accountTitleLabel.setText(username)
         self.avatarLabel.setPixmap(QPixmap(avatar).scaled(self.avatarLabel.width(), self.avatarLabel.height(), Qt.KeepAspectRatio, Qt.FastTransformation))
         self.usernameLabel.setText(username_short)
+
+    def reloadMyAccountTab(self, signals):
+        self.accountWidget.reload(signals)
+        self.latestTrancWidget.reload(signals)
+        self.allExpensesWidget.reload(signals)
 
 
 if __name__ == "__main__":
