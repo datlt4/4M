@@ -3,10 +3,10 @@ from __future__ import division
 from __future__ import print_function
 
 # Uncomment if build .exe file in Windows
-# try:
-#     import pkg_resources.py2_warn
-# except ImportError:
-#     pass
+try:
+    import pkg_resources.py2_warn
+except ImportError:
+    pass
 
 import os
 import sys
