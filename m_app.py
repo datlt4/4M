@@ -29,6 +29,7 @@ def main():
     """
     conn = DB.ConnectDatabase("Minh_s_expense.db")
     app = QApplication(sys.argv)
+    app.aboutToQuit.connect(lambda: print("__Application exited__"))
     app.setStyleSheet(stylesheet)
     window = GUI.AppWindow(app, conn)
     # window.showFullScreen()

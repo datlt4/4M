@@ -263,6 +263,7 @@ if __name__ == "__main__":
     """
 
     app = QApplication(sys.argv)
+    app.aboutToQuit.connect(lambda: print("__Application exited__"))
     app.setStyleSheet(stylesheet)
     window = AppWindow(app)
     window.showFullScreen()
