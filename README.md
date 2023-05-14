@@ -1,5 +1,5 @@
 # ỨNG DỤNG QUẢN LÝ CHI TIÊU
-***Tác giả: Nguyễn Thị Minh***
+***For: em***
 
     python3 m_app.py
 
